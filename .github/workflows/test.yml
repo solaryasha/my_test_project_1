@@ -1,0 +1,39 @@
+name: Mirror repo to S3
+on:
+  push:
+    branches:
+      - main
+env:
+  BUCKET_NAME : "mate-github"
+  AWS_REGION : "eu-central-1"
+jobs:
+  s3Backup:
+    permissions:
+      id-token: write
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Git clone the repository
+        uses: actions/checkout@v1
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@master
+        with:
+          role-to-assume: arn:aws:iam::781122033386:role/sync-learn-repo-to-s3
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Sync files to s3
+        shell: bash
+        run: |
+          FILES=()
+          for i in $( git diff --name-only HEAD HEAD~1); do
+              FILES+=( "$i" )
+          done
+          echo "${FILES[@]}"
+          CMDS=()
+          for i in "${FILES[@]}"; do
+              CMDS+=("--include=$i""*")
+          done
+          echo "${CMDS[@]}"
+          echo "${CMDS[@]}" | xargs aws s3 sync . s3://test-bucket-for-content-sync/my_project --delete --exclude "*"
